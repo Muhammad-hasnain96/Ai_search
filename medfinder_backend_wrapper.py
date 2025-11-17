@@ -42,9 +42,9 @@ def api_live():
         return jsonify({'error':'live ebay search failed','detail':str(e)}),500
 
 @app.route('/')
-def health():
-    return {"message":"Backend running successfully!","routes":["/api/search","/api/live"],"status":"OK"}
+def home():
+    return jsonify({"message":"MedFinder AI backend running successfully!","routes":["/api/search","/api/live"],"status":"OK"})
 
-if __name__=='__main__':
-    port=int(os.getenv('PORT',8501))
+if __name__ == '__main__':
+    port = int(os.getenv('PORT',8501))
     app.run(host='0.0.0.0', port=port)
