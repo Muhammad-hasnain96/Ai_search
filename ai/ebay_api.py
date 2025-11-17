@@ -1,21 +1,22 @@
-import requests, json, base64, os, re
-from ai import config
+import os, json, base64, requests, re
+from . import config
 
-MEDICAL_CATEGORIES = [
-    "11815","177646","40943","18412","11818","10968"
-]
+# Categories (you can expand this if needed)
+MEDICAL_CATEGORIES = ["11815", "177646", "40943", "18412", "11818", "10968"]
 
 def get_access_token(force_refresh=False):
     token_file = config.TOKEN_FILE
-
     if not force_refresh and os.path.exists(token_file):
         try:
-            with open(token_file,"r") as f:
+            with open(token_file, "r") as f:
                 token_data = json.load(f)
                 if token_data.get("access_token"):
                     return token_data["access_token"]
         except:
             pass
+
+    if not config.CLIENT_ID or not config.CLIENT_SECRET or not config.REFRESH_TOKEN:
+        raise RuntimeError("eBay credentials missing!")
 
     auth = base64.b64encode(f"{config.CLIENT_ID}:{config.CLIENT_SECRET}".encode()).decode()
     headers = {"Authorization": f"Basic {auth}", "Content-Type": "application/x-www-form-urlencoded"}
@@ -28,11 +29,13 @@ def get_access_token(force_refresh=False):
     r = requests.post(config.OAUTH_URL, headers=headers, data=data)
     r.raise_for_status()
     token_data = r.json()
+
     try:
-        with open(token_file,"w") as f:
-            json.dump(token_data,f)
+        with open(token_file, "w") as f:
+            json.dump(token_data, f)
     except:
         pass
+
     return token_data["access_token"]
 
 def get_valid_token():
@@ -43,23 +46,22 @@ def get_valid_token():
 
 def clean_query(query):
     query = query.lower()
-    query = re.sub(r"\b(give me|suggest|show|find|best|recommend|buy|cheap)\b", "", query)
-    return query.strip()
+    return re.sub(r"\b(give me|suggest|show|find|best|recommend|buy|cheap)\b", "", query).strip()
 
-def search_ebay(query, token, limit=5):
+def search_ebay(query, token, limit=10, categories=None):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     query = clean_query(query)
-    all_results = []
+    results = []
 
-    # Try medical categories first
-    for cid in MEDICAL_CATEGORIES:
+    target_categories = categories or MEDICAL_CATEGORIES
+    for cid in target_categories:
         params = {"q": query, "limit": limit, "category_ids": cid}
         r = requests.get(config.BUY_BROWSE_URL, headers=headers, params=params)
         if r.status_code != 200:
             continue
         data = r.json()
         for it in data.get("itemSummaries", []):
-            all_results.append({
+            results.append({
                 "title": it.get("title",""),
                 "price": it.get("price",{}).get("value","N/A"),
                 "currency": it.get("price",{}).get("currency","USD"),
@@ -68,13 +70,12 @@ def search_ebay(query, token, limit=5):
                 "image": it.get("image",{}).get("imageUrl","")
             })
 
-    # If nothing, fallback to general search
-    if not all_results:
+    # Fallback: search without categories
+    if not results:
         r = requests.get(config.BUY_BROWSE_URL, headers=headers, params={"q": query, "limit": limit})
         if r.status_code == 200:
-            data = r.json()
-            for it in data.get("itemSummaries", []):
-                all_results.append({
+            for it in r.json().get("itemSummaries", []):
+                results.append({
                     "title": it.get("title",""),
                     "price": it.get("price",{}).get("value","N/A"),
                     "currency": it.get("price",{}).get("currency","USD"),
@@ -83,12 +84,13 @@ def search_ebay(query, token, limit=5):
                     "image": it.get("image",{}).get("imageUrl","")
                 })
 
-    # Remove duplicates
-    seen=set()
-    uniq=[]
-    for it in all_results:
+    # Deduplicate
+    seen = set()
+    uniq = []
+    for it in results:
         t = it["title"].lower().strip()
         if t not in seen:
             seen.add(t)
             uniq.append(it)
+
     return uniq
