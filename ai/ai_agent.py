@@ -8,29 +8,22 @@ class MedFinderAI:
             self.intent_model = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
         except:
             self.intent_model = None
-
         try:
             self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
         except:
             self.embedding_model = None
 
     def infer_intent(self, query):
-        categories = [
-            "urine bag","catheter","blood pressure monitor","thermometer",
-            "pulse oximeter","glucometer","stethoscope","surgical gloves",
-            "wheelchair","hearing aid","bandage","nebulizer",
-            "oxygen concentrator","rehabilitation equipment","hospital bed",
-            "first aid kit","dental tool"
-        ]
+        categories = ["urine bag","catheter","blood pressure monitor","thermometer",
+                      "pulse oximeter","glucometer","stethoscope","surgical gloves",
+                      "wheelchair","hearing aid","bandage","nebulizer",
+                      "oxygen concentrator","rehabilitation equipment","hospital bed",
+                      "first aid kit","dental tool"]
         if not self.intent_model:
             return query
-
         res = self.intent_model(query, categories)
-        label = res["labels"][0]
-        score = res["scores"][0]
-        if score > 0.5:
-            return label
-        return query
+        label, score = res["labels"][0], res["scores"][0]
+        return label if score > 0.5 else query
 
     def enhance_query_keywords(self, query):
         kw = {
@@ -55,7 +48,4 @@ class MedFinderAI:
     def format_response(self, results):
         if not results:
             return "No products found."
-        out = []
-        for r in results:
-            out.append(f"• {r.get('title')} (${r.get('price')})\n  {r.get('url')}")
-        return "\n".join(out)
+        return "\n".join([f"• {r.get('title')} (${r.get('price')})\n  {r.get('url')}" for r in results])
