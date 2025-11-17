@@ -1,13 +1,7 @@
-import requests
-import json
-import base64
-import os
-import re
+import requests, json, base64, os, re
 from ai import config
 
-MEDICAL_CATEGORIES = [
-    "11815", "177646", "40943", "18412", "11818", "10968",
-]
+MEDICAL_CATEGORIES = ["11815", "177646", "40943", "18412", "11818", "10968"]
 
 def get_access_token(force_refresh=False):
     token_file = config.TOKEN_FILE
@@ -76,6 +70,7 @@ def search_ebay(query, token, limit=5):
                 "image": it.get("image",{}).get("imageUrl","")
             })
 
+    # fallback to general search if no items
     if not all_results:
         r = requests.get(config.BUY_BROWSE_URL, headers=headers, params={"q": query, "limit": limit})
         if r.status_code == 200:
@@ -90,10 +85,10 @@ def search_ebay(query, token, limit=5):
                     "image": it.get("image",{}).get("imageUrl","")
                 })
 
-    seen=set()
-    uniq=[]
+    seen = set()
+    uniq = []
     for it in all_results:
-        t=it["title"].lower().strip()
+        t = it["title"].lower().strip()
         if t not in seen:
             seen.add(t)
             uniq.append(it)
