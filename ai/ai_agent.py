@@ -16,14 +16,11 @@ class MedFinderAI:
 
     def infer_intent(self, query):
         categories = [
-            # Medical
-            "urine bag","catheter","thermometer","stethoscope",
-            # Electronics
-            "laptop","smartphone","camera","headphones",
-            # Books
-            "novel","textbook","guide","manual",
-            # Clothing
-            "shirt","pants","jacket","dress","shoes"
+            "urine bag","catheter","blood pressure monitor","thermometer",
+            "pulse oximeter","glucometer","stethoscope","surgical gloves",
+            "wheelchair","hearing aid","bandage","nebulizer",
+            "oxygen concentrator","rehabilitation equipment","hospital bed",
+            "first aid kit","dental tool"
         ]
         if not self.intent_model:
             return query
