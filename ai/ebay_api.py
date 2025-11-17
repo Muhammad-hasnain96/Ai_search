@@ -1,7 +1,13 @@
-import requests, json, base64, os, re
+import requests
+import json
+import base64
+import os
+import re
 from ai import config
 
-MEDICAL_CATEGORIES = ["11815", "177646", "40943", "18412", "11818", "10968"]
+MEDICAL_CATEGORIES = [
+    "11815", "177646", "40943", "18412", "11818", "10968",
+]
 
 def get_access_token(force_refresh=False):
     token_file = config.TOKEN_FILE
@@ -12,7 +18,7 @@ def get_access_token(force_refresh=False):
                 token_data = json.load(f)
                 if token_data.get("access_token"):
                     return token_data["access_token"]
-        except:
+        except Exception:
             pass
 
     if not config.CLIENT_ID or not config.CLIENT_SECRET or not config.REFRESH_TOKEN:
@@ -33,7 +39,7 @@ def get_access_token(force_refresh=False):
     try:
         with open(token_file, "w") as f:
             json.dump(token_data, f)
-    except:
+    except Exception:
         pass
 
     return token_data["access_token"]
@@ -41,7 +47,7 @@ def get_access_token(force_refresh=False):
 def get_valid_token():
     try:
         return get_access_token(False)
-    except:
+    except Exception:
         return get_access_token(True)
 
 def clean_query(query):
@@ -49,12 +55,11 @@ def clean_query(query):
     query = re.sub(r"\b(give me|suggest|show|find|best|recommend|buy|cheap)\b", "", query)
     return query.strip()
 
-def search_ebay(query, token, limit=10):
+def search_ebay(query, token, limit=5):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     query = clean_query(query)
     all_results = []
 
-    # First try medical categories
     for cid in MEDICAL_CATEGORIES:
         params = {"q": query, "limit": limit, "category_ids": cid}
         r = requests.get(config.BUY_BROWSE_URL, headers=headers, params=params)
@@ -71,10 +76,8 @@ def search_ebay(query, token, limit=10):
                 "image": it.get("image",{}).get("imageUrl","")
             })
 
-    # If no results, search globally
     if not all_results:
-        params = {"q": query, "limit": limit}
-        r = requests.get(config.BUY_BROWSE_URL, headers=headers, params=params)
+        r = requests.get(config.BUY_BROWSE_URL, headers=headers, params={"q": query, "limit": limit})
         if r.status_code == 200:
             data = r.json()
             for it in data.get("itemSummaries", []):
@@ -87,7 +90,6 @@ def search_ebay(query, token, limit=10):
                     "image": it.get("image",{}).get("imageUrl","")
                 })
 
-    # Deduplicate
     seen=set()
     uniq=[]
     for it in all_results:
@@ -96,4 +98,4 @@ def search_ebay(query, token, limit=10):
             seen.add(t)
             uniq.append(it)
 
-    return uniq[:limit]
+    return uniq
