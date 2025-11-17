@@ -2,17 +2,11 @@ flask
 flask-cors
 requests
 
-# ML + embeddings
-sentence-transformers
-transformers
-
-# CPU-only PyTorch (no CUDA – builds fast)
-torch==2.2.2+cpu
+sentence-transformers==2.2.2
+torch==2.2.0+cpu
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-numpy
-faiss-cpu
+numpy==1.26.4
+faiss-cpu==1.7.4
 
-# Production server
 gunicorn
-
