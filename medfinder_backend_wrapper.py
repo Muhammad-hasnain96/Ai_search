@@ -1,6 +1,5 @@
-import os
+import os, importlib, traceback, inspect
 from flask import Flask, request, jsonify
-import importlib, traceback, inspect
 from ai.ebay_api import search_ebay, get_access_token
 
 app = Flask(__name__)
@@ -16,12 +15,8 @@ def api_search():
         func = getattr(mod,'enhanced_search',None)
         if func is None:
             return jsonify({'error':'enhanced_search missing'}),500
-
         sig = inspect.signature(func)
-        if 'limit' in sig.parameters:
-            res = func(q, limit=limit)
-        else:
-            res = func(q)
+        res = func(q, limit=limit) if 'limit' in sig.parameters else func(q)
         return jsonify({'query':q,'limit':limit,'results':res})
     except Exception as e:
         traceback.print_exc()
@@ -42,9 +37,10 @@ def api_live():
         return jsonify({'error':'live ebay search failed','detail':str(e)}),500
 
 @app.route('/')
-def home():
+def index():
     return jsonify({"message":"MedFinder AI backend running successfully!","routes":["/api/search","/api/live"],"status":"OK"})
 
-if __name__ == '__main__':
-    port = int(os.getenv('PORT',8501))
+if __name__=='__main__':
+    from ai import config
+    port = config.PORT
     app.run(host='0.0.0.0', port=port)
