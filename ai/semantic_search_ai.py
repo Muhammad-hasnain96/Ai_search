@@ -29,23 +29,20 @@ except:
     index = None
     metadata = []
 
-# ------------------------
-# Multi-field category keywords
-CATEGORY_KEYWORDS = {
-    "medical": ["medical","health","surgical","bp","mask","glove","thermometer","stethoscope"],
-    "electronics": ["laptop","phone","camera","headphones","smartwatch"],
-    "books": ["book","novel","textbook","guide","manual"],
-    "clothing": ["shirt","pants","dress","jacket","shoes"]
-}
+def is_medical_product(title, query):
+    t = title.lower()
+    q = query.lower()
+    terms = [w for w in q.split() if len(w) > 2]
 
-def matches_category(title, inferred_label):
-    if not title:
-        return False
-    title = title.lower()
-    for cat, keywords in CATEGORY_KEYWORDS.items():
-        if inferred_label.lower() in " ".join(keywords):
-            return any(k in title for k in keywords)
-    return True  # fallback: include all
+    must = any(w in t for w in terms)
+    med = ["medical","health","surgical","hospital","glove","monitor","bp",
+           "blood pressure","stethoscope","mask","thermometer","bandage",
+           "rehab","wheelchair","clinic","oxygen","pulse","nebulizer",
+           "walker","hearing","care","sanitizer","brace","pill","medicine",
+           "drug","first aid","iv","infusion","orthopedic","dental",
+           "urine","urinal","catheter"]
+    has = any(m in t for m in med)
+    return must and has
 
 def semantic_search(query, threshold=0.65, k=15):
     if index is None or not metadata or embedding_model is None:
@@ -59,26 +56,28 @@ def semantic_search(query, threshold=0.65, k=15):
         if idx < 0 or idx >= len(metadata):
             continue
         item = metadata[idx].copy()
-        if score >= threshold:
+        title = item.get("title", "")
+        if score >= threshold and is_medical_product(title, query):
+            item["score"] = float(score)
             out.append(item)
 
     maxs = float(np.max(scores[0])) if len(scores[0]) else 0.0
     return out, maxs
 
 def enhanced_search(user_query, limit=10):
-    inferred_label = ai_agent.infer_intent(user_query)
     opt = ai_agent.optimize_query(user_query)
-
     local, sc = semantic_search(opt)
-    res = [item for item in local if matches_category(item.get("title", ""), inferred_label)][:limit]
+    res = local[:limit]
 
-    if not res or sc < 0.65:
-        try:
-            tok = get_valid_token()
-            items = search_ebay(opt, tok, limit)
-            res.extend([i for i in items if matches_category(i.get("title", ""), inferred_label)])
-        except:
-            pass
+    try:
+        tok = get_valid_token()
+        items = search_ebay(opt, tok, limit)
+        # Only filter if query seems medical
+        if any(word in user_query.lower() for word in ["medical","health","hospital","glove","mask","pill","drug"]):
+            items = [i for i in items if is_medical_product(i.get("title",""), opt)]
+        res.extend(items)
+    except:
+        pass
 
     seen = set()
     uniq = []
@@ -87,5 +86,4 @@ def enhanced_search(user_query, limit=10):
         if t and t not in seen:
             seen.add(t)
             uniq.append(it)
-
     return uniq
