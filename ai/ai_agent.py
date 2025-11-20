@@ -3,16 +3,16 @@ import re
 class MedFinderAI:
     """
     Lightweight hybrid agent:
-      - extracts intent (medical vs general)
-      - normalizes query
-      - extracts price and currency if present
-      - returns a structured dict:
-          {
-            "query": "thermometer",
-            "is_medical": True,
-            "max_price": 15000.0,     # float or None
-            "currency": "PKR"         # ISO-like code or None
-          }
+    - extracts intent (medical vs general)
+    - normalizes query
+    - extracts price and currency if present
+    - returns a structured dict:
+    {
+        "query": "thermometer",
+        "is_medical": True,
+        "max_price": 15000.0,  # float or None
+        "currency": "PKR"      # ISO-like code or None
+    }
     """
 
     MEDICAL_KEYWORDS = [
@@ -20,7 +20,7 @@ class MedFinderAI:
         "thermometer", "pulse oximeter", "glucometer", "stethoscope",
         "surgical gloves", "wheelchair", "bandage", "nebulizer",
         "oxygen concentrator", "hearing aid", "walker", "syringe",
-        "iv set", "face mask", "first aid kit", "oxygen concentrator"
+        "iv set", "face mask", "first aid kit"
     ]
 
     REMOVE_PHRASES = [
@@ -30,19 +30,14 @@ class MedFinderAI:
         "under", "below", "less than", "less than or equal to", "upto", "up to"
     ]
 
-    # currency symbols -> codes (common)
     CURRENCY_SYMBOLS = {
-        '$': 'USD', 'usd': 'USD',
-        '€': 'EUR', 'eur': 'EUR',
-        '£': 'GBP', 'gbp': 'GBP',
-        '₹': 'INR', 'inr': 'INR',
+        '$': 'USD', 'usd': 'USD', '€': 'EUR', 'eur': 'EUR',
+        '£': 'GBP', 'gbp': 'GBP', '₹': 'INR', 'inr': 'INR',
         'rs': 'PKR', 'pkr': 'PKR', 'pk': 'PKR'
     }
 
-    # Regex to extract price expressions like:
-    # "under 15000 PKR", "below $20", "under 50", "≤1000", "1000 rs"
     PRICE_RE = re.compile(
-        r'(?:under|below|less than|upto|up to|<=|≤|<)?\s*'  # optional prefixes
+        r'(?:under|below|less than|upto|up to|<=|≤|<)?\s*'
         r'(?P<symbol>[$€£₹])?\s*'
         r'(?P<amount>\d{1,3}(?:[,\d]{0,})?(?:\.\d+)?)\s*'
         r'(?P<code>[A-Za-z]{2,4}|rs|pkr)?',
@@ -53,7 +48,6 @@ class MedFinderAI:
         q = q.lower().strip()
         for phrase in self.REMOVE_PHRASES:
             q = q.replace(phrase, "")
-        # remove extra punctuation
         q = re.sub(r'[\?\!]', '', q)
         q = " ".join(q.split())
         return q.strip()
@@ -63,70 +57,47 @@ class MedFinderAI:
         for k in self.MEDICAL_KEYWORDS:
             if k in lq:
                 return True
-        # also check for explicit medical words
+        # also check general medical words
         for w in ["medical", "hospital", "clinic", "health", "surgical"]:
             if w in lq:
                 return True
         return False
 
     def extract_price(self, q: str):
-        """
-        returns (max_price: float|None, currency: str|None)
-        """
+        """returns (max_price: float|None, currency: str|None)"""
         m = self.PRICE_RE.search(q)
         if not m:
             return None, None
-
         amt = m.group("amount")
         symbol = m.group("symbol")
         code = m.group("code")
-
-        # normalize amount (remove commas)
         try:
             amount = float(amt.replace(",", ""))
         except Exception:
             amount = None
-
         cur = None
         if symbol:
             cur = self.CURRENCY_SYMBOLS.get(symbol, None)
         if code:
             code_norm = code.lower()
             cur = self.CURRENCY_SYMBOLS.get(code_norm, cur) or code_norm.upper()
-
         return amount, cur
 
     def detect_general_intent(self, q: str) -> str:
         parts = q.split()
         if len(parts) <= 1:
             return q
-        # prefer last 3 words (usually product)
         return " ".join(parts[-3:]).strip()
 
     def optimize_query(self, query: str):
-        """
-        Returns a dict:
-          {
-            "query": "thermometer",
-            "is_medical": True/False,
-            "max_price": 15000.0 or None,
-            "currency": "PKR" or None
-          }
-        """
+        """Returns structured dict"""
         if not isinstance(query, str):
             query = str(query)
-
         cleaned = self.normalize_query(query)
         max_price, currency = self.extract_price(query)
-
-        # remove any price tokens from cleaned so intent detection is cleaner
-        # e.g., "thermometer under 1000" -> "thermometer"
         cleaned = re.sub(self.PRICE_RE, "", cleaned).strip()
-
-        # detect medical vs general
         is_med = self.detect_medical_intent(cleaned)
         if is_med:
-            # If medical keyword present, pick the exact medical phrase if possible
             found_med = None
             l = cleaned.lower()
             for k in self.MEDICAL_KEYWORDS:
@@ -136,13 +107,9 @@ class MedFinderAI:
             q_text = found_med or cleaned
         else:
             q_text = self.detect_general_intent(cleaned)
-
-        # final fallback
-        q_text = q_text.strip() or cleaned
-
         return {
-            "query": q_text,
+            "query": q_text.strip() or cleaned,
             "is_medical": bool(is_med),
-            "max_price": float(max_price) if max_price is not None else None,
+            "max_price": float(max_price) if max_price else None,
             "currency": currency
         }
