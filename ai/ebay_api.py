@@ -11,7 +11,6 @@ MEDICAL_CATEGORIES = [
 
 def get_access_token(force_refresh=False):
     token_file = config.TOKEN_FILE
-
     if not force_refresh and os.path.exists(token_file):
         try:
             with open(token_file, "r") as f:
@@ -35,13 +34,11 @@ def get_access_token(force_refresh=False):
     response = requests.post(config.OAUTH_URL, headers=headers, data=data)
     response.raise_for_status()
     token_data = response.json()
-
     try:
         with open(token_file, "w") as f:
             json.dump(token_data, f)
     except Exception:
         pass
-
     return token_data["access_token"]
 
 def get_valid_token():
@@ -50,52 +47,71 @@ def get_valid_token():
     except Exception:
         return get_access_token(True)
 
+# small helper to clean user query
 def clean_query(query):
     query = query.lower()
-    query = re.sub(r"\b(give me|suggest|show|find|best|recommend|buy|cheap)\b", "", query)
+    query = re.sub(r"\b(give me|suggest|show|find|best|recommend|buy|cheap|under|below|less than|up to|upto)\b", "", query)
     return query.strip()
 
 def search_ebay(query, token, limit=5):
+    """
+    Performs eBay Buy API search using Browse endpoint.
+    We avoid relying on specific server-side price filters; instead we fetch and filter client-side.
+    """
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     query = clean_query(query)
     all_results = []
 
+    # try medical categories first (better precision), then global fallback
     for cid in MEDICAL_CATEGORIES:
         params = {"q": query, "limit": limit, "category_ids": cid}
-        r = requests.get(config.BUY_BROWSE_URL, headers=headers, params=params)
+        try:
+            r = requests.get(config.BUY_BROWSE_URL, headers=headers, params=params, timeout=8)
+        except Exception:
+            continue
         if r.status_code != 200:
             continue
         data = r.json()
         for it in data.get("itemSummaries", []):
             all_results.append({
                 "title": it.get("title",""),
-                "price": it.get("price",{}).get("value","N/A"),
-                "currency": it.get("price",{}).get("currency","USD"),
+                "price": it.get("price",{}).get("value",None),
+                "currency": it.get("price",{}).get("currency",None),
                 "url": it.get("itemWebUrl","#"),
                 "condition": it.get("condition","N/A"),
                 "image": it.get("image",{}).get("imageUrl","")
             })
 
+    # fallback general search if nothing found in medical categories
     if not all_results:
-        r = requests.get(config.BUY_BROWSE_URL, headers=headers, params={"q": query, "limit": limit})
-        if r.status_code == 200:
-            data = r.json()
-            for it in data.get("itemSummaries", []):
-                all_results.append({
-                    "title": it.get("title",""),
-                    "price": it.get("price",{}).get("value","N/A"),
-                    "currency": it.get("price",{}).get("currency","USD"),
-                    "url": it.get("itemWebUrl","#"),
-                    "condition": it.get("condition","N/A"),
-                    "image": it.get("image",{}).get("imageUrl","")
-                })
+        try:
+            r = requests.get(config.BUY_BROWSE_URL, headers=headers, params={"q": query, "limit": limit}, timeout=8)
+            if r.status_code == 200:
+                data = r.json()
+                for it in data.get("itemSummaries", []):
+                    all_results.append({
+                        "title": it.get("title",""),
+                        "price": it.get("price",{}).get("value",None),
+                        "currency": it.get("price",{}).get("currency",None),
+                        "url": it.get("itemWebUrl","#"),
+                        "condition": it.get("condition","N/A"),
+                        "image": it.get("image",{}).get("imageUrl","")
+                    })
+        except Exception:
+            pass
 
-    seen=set()
-    uniq=[]
+    # dedupe by normalized title + url
+    seen = set()
+    uniq = []
     for it in all_results:
-        t=it["title"].lower().strip()
-        if t not in seen:
-            seen.add(t)
-            uniq.append(it)
+        t = (it.get("title") or "").lower().strip()
+        u = it.get("url") or ""
+        key = (t, u)
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(it)
+        if len(uniq) >= limit:
+            break
 
     return uniq
