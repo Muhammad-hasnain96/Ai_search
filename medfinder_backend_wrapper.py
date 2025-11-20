@@ -8,19 +8,21 @@ agent = MedFinderAI()
 
 @app.route("/")
 def home():
-    return jsonify({"message":"MedFinder AI backend running successfully!","routes":["/api/search","/api/live"],"status":"OK"})
+    return jsonify({
+        "message":"MedFinder AI backend running successfully!",
+        "routes":["/api/search","/api/live"],
+        "status":"OK"
+    })
 
 def parse_query_struct(q_raw):
-    try:
-        return agent.optimize_query(q_raw)
-    except:
-        return {"query": q_raw, "is_medical": False, "max_price": None, "currency": None}
+    try: return agent.optimize_query(q_raw)
+    except: return {"query":q_raw,"is_medical":False,"max_price":None,"currency":None}
 
 @app.route("/api/search")
 def api_search():
-    q = request.args.get("q","")
+    q = request.args.get("q","").strip()
     limit = int(request.args.get("limit",20))
-    if not q.strip():
+    if not q:
         return jsonify({"error":"no query provided"}),400
     try:
         q_struct = parse_query_struct(q)
@@ -29,7 +31,7 @@ def api_search():
         if func is None:
             return jsonify({"error":"enhanced_search missing"}),500
         sig = inspect.signature(func)
-        res = func(q_struct, limit=limit) if 'limit' in sig.parameters else func(q_struct)
+        res = func(q_struct, limit=limit) if "limit" in sig.parameters else func(q_struct)
         return jsonify({"query":q,"structured":q_struct,"limit":limit,"results":res})
     except Exception as e:
         traceback.print_exc()
@@ -37,13 +39,13 @@ def api_search():
 
 @app.route("/api/live")
 def api_live():
-    q = request.args.get("q","")
+    q = request.args.get("q","").strip()
     limit = int(request.args.get("limit",10))
-    if not q.strip():
+    if not q:
         return jsonify({"error":"no query provided"}),400
     try:
         tok = get_access_token()
-        res = search_ebay(q, tok, limit)
+        res = search_ebay(q,tok,limit)
         return jsonify({"query":q,"limit":limit,"results":res})
     except Exception as e:
         traceback.print_exc()
