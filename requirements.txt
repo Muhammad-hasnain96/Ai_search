@@ -1,8 +1,8 @@
-flask==2.3.5
+flask==2.3.2
 flask-cors==3.1.1
 requests==2.31.0
 
-# lightweight NLP model
+# Lightweight NLP model
 sentence-transformers==2.2.2
 torch==2.2.0+cpu
 --extra-index-url https://download.pytorch.org/whl/cpu
