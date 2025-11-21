@@ -1,5 +1,5 @@
 flask==2.3.2
-flask-cors==3.1.1
+flask-cors==3.1.2
 requests==2.31.0
 
 # Lightweight NLP model
